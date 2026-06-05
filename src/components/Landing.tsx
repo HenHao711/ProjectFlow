@@ -1,31 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
 import { ArrowRight, Layers, GitBranch, Users } from 'lucide-react';
+import GridBackground from './GridBackground';
 
 interface LandingProps {
   onEnter: () => void;
 }
 
 export default function Landing({ onEnter }: LandingProps) {
-  const [pos, setPos] = useState({ x: -1000, y: -1000 });
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    setPos({ x: e.clientX, y: e.clientY });
-  }, []);
-
-  useEffect(() => {
-    window.addEventListener('mousemove', handleMouseMove, { passive: true });
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [handleMouseMove]);
-
   return (
-    <div className="min-h-screen flex flex-col bg-white relative overflow-hidden">
-      {/* Mouse glow effect */}
-      <div
-        className="fixed inset-0 pointer-events-none z-0"
-        style={{
-          background: `radial-gradient(600px circle at ${pos.x}px ${pos.y}px, rgba(59,130,246,0.06), transparent 80%)`,
-        }}
-      />
+    <div className="min-h-screen flex flex-col relative">
+      <GridBackground />
 
       {/* Hero */}
       <section className="flex-1 flex flex-col items-center justify-center px-6 pt-20 pb-12 relative z-10">
@@ -53,8 +36,8 @@ export default function Landing({ onEnter }: LandingProps) {
       <section className="px-6 pb-24 relative z-10">
         <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-8">
           <div className="text-center sm:text-left">
-            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mb-4 mx-auto sm:mx-0">
-              <Layers size={20} className="text-gray-700" />
+            <div className="w-10 h-10 bg-white/80 backdrop-blur rounded-lg flex items-center justify-center mb-4 mx-auto sm:mx-0 shadow-sm">
+              <Layers size={20} className="text-blue-600" />
             </div>
             <h3 className="text-sm font-semibold text-gray-900 mb-2">Kanban Boards</h3>
             <p className="text-sm text-gray-500 leading-relaxed">
@@ -63,8 +46,8 @@ export default function Landing({ onEnter }: LandingProps) {
           </div>
 
           <div className="text-center sm:text-left">
-            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mb-4 mx-auto sm:mx-0">
-              <GitBranch size={20} className="text-gray-700" />
+            <div className="w-10 h-10 bg-white/80 backdrop-blur rounded-lg flex items-center justify-center mb-4 mx-auto sm:mx-0 shadow-sm">
+              <GitBranch size={20} className="text-blue-600" />
             </div>
             <h3 className="text-sm font-semibold text-gray-900 mb-2">Department Flow</h3>
             <p className="text-sm text-gray-500 leading-relaxed">
@@ -73,8 +56,8 @@ export default function Landing({ onEnter }: LandingProps) {
           </div>
 
           <div className="text-center sm:text-left">
-            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mb-4 mx-auto sm:mx-0">
-              <Users size={20} className="text-gray-700" />
+            <div className="w-10 h-10 bg-white/80 backdrop-blur rounded-lg flex items-center justify-center mb-4 mx-auto sm:mx-0 shadow-sm">
+              <Users size={20} className="text-blue-600" />
             </div>
             <h3 className="text-sm font-semibold text-gray-900 mb-2">Team Visibility</h3>
             <p className="text-sm text-gray-500 leading-relaxed">
