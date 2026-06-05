@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore } from './store';
 import Header from './components/Header';
+import Landing from './components/Landing';
 import Sidebar from './components/Sidebar';
 import KanbanBoard from './components/KanbanBoard';
 import ProjectModal from './components/ProjectModal';
@@ -28,10 +29,15 @@ function EmptyState({ onClick }: { onClick: () => void }) {
 }
 
 export default function App() {
+  const [showLanding, setShowLanding] = useState(true);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const projects = useStore((s) => s.projects);
   const currentProjectId = useStore((s) => s.currentProjectId);
+
+  if (showLanding) {
+    return <Landing onEnter={() => setShowLanding(false)} />;
+  }
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
