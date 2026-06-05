@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react';
 import { ArrowRight, Layers, GitBranch, Users } from 'lucide-react';
 
 interface LandingProps {
@@ -5,10 +6,29 @@ interface LandingProps {
 }
 
 export default function Landing({ onEnter }: LandingProps) {
+  const [pos, setPos] = useState({ x: -1000, y: -1000 });
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    setPos({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [handleMouseMove]);
+
   return (
-    <div className="min-h-screen flex flex-col bg-white">
+    <div className="min-h-screen flex flex-col bg-white relative overflow-hidden">
+      {/* Mouse glow effect */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0"
+        style={{
+          background: `radial-gradient(600px circle at ${pos.x}px ${pos.y}px, rgba(59,130,246,0.06), transparent 80%)`,
+        }}
+      />
+
       {/* Hero */}
-      <section className="flex-1 flex flex-col items-center justify-center px-6 pt-20 pb-12">
+      <section className="flex-1 flex flex-col items-center justify-center px-6 pt-20 pb-12 relative z-10">
         <div className="w-full max-w-2xl text-center">
           <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-gray-900 mb-4">
             ProjectFlow
@@ -30,7 +50,7 @@ export default function Landing({ onEnter }: LandingProps) {
       </section>
 
       {/* Features */}
-      <section className="px-6 pb-24">
+      <section className="px-6 pb-24 relative z-10">
         <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-8">
           <div className="text-center sm:text-left">
             <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mb-4 mx-auto sm:mx-0">
@@ -65,7 +85,7 @@ export default function Landing({ onEnter }: LandingProps) {
       </section>
 
       {/* Footer */}
-      <footer className="px-6 py-6 text-center text-xs text-gray-400 border-t border-gray-100">
+      <footer className="px-6 py-6 text-center text-xs text-gray-400 border-t border-gray-100 relative z-10">
         ProjectFlow &mdash; built for clarity
       </footer>
     </div>

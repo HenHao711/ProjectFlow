@@ -41,7 +41,7 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <Header />
+      <Header onLogoClick={() => setShowLanding(true)} />
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar overlay for mobile */}
         {sidebarOpen && (

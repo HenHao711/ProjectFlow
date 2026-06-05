@@ -1,7 +1,11 @@
 import { useStore } from '../store';
 import { Menu, Trash2 } from 'lucide-react';
 
-export default function Header() {
+interface HeaderProps {
+  onLogoClick?: () => void;
+}
+
+export default function Header({ onLogoClick }: HeaderProps) {
   const toggleSidebar = useStore((s) => s.toggleSidebar);
   const projects = useStore((s) => s.projects);
   const currentProjectId = useStore((s) => s.currentProjectId);
@@ -18,7 +22,12 @@ export default function Header() {
         <Menu size={20} />
       </button>
       <div className="flex items-center gap-2 min-w-0 flex-1">
-        <span className="text-sm font-semibold text-blue-600 shrink-0">ProjectFlow</span>
+        <button
+          onClick={onLogoClick}
+          className="text-sm font-semibold text-blue-600 shrink-0 hover:text-blue-700 transition-colors cursor-pointer bg-transparent border-none p-0"
+        >
+          ProjectFlow
+        </button>
         {currentProject && (
           <>
             <span className="text-gray-300">/</span>
