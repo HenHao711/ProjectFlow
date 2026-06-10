@@ -29,17 +29,19 @@ export default function LoginModal({ onClose }: LoginModalProps) {
       }
       onClose();
     } catch (err: unknown) {
-      const msg = (err as { code?: string }).code;
-      if (msg === 'auth/invalid-credential' || msg === 'auth/user-not-found') {
+      const code = (err as { code?: string }).code || '';
+      const message = (err as { message?: string }).message || '';
+      if (code === 'auth/invalid-credential' || code === 'auth/user-not-found' || code === 'auth/wrong-password') {
         setError('邮箱或密码错误');
-      } else if (msg === 'auth/email-already-in-use') {
+      } else if (code === 'auth/email-already-in-use') {
         setError('该邮箱已注册');
-      } else if (msg === 'auth/weak-password') {
+      } else if (code === 'auth/weak-password') {
         setError('密码至少需要6位');
-      } else if (msg === 'auth/invalid-email') {
+      } else if (code === 'auth/invalid-email') {
         setError('邮箱格式不正确');
       } else {
-        setError('操作失败，请稍后重试');
+        const detail = message.replace('Firebase: ', '').trim();
+        setError(detail || `操作失败 [${code || 'network-error'}]`);
       }
     }
     setLoading(false);
@@ -88,7 +90,7 @@ export default function LoginModal({ onClose }: LoginModalProps) {
           </div>
 
           {error && (
-            <p className="text-xs text-red-500">{error}</p>
+            <p className="text-xs text-red-500 break-words">{error}</p>
           )}
 
           <button
