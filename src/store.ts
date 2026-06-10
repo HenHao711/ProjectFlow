@@ -19,7 +19,6 @@ function migrateTask(t: Task): Task {
   };
 }
 
-// Load any existing localStorage data on startup
 function loadFromLocalStorage(): { projects: Project[]; tasks: Task[] } | null {
   try {
     const raw = localStorage.getItem('project-flow-storage');
@@ -255,15 +254,20 @@ let migrateDone = false;
 async function doSync() {
   if (!currentUid) return;
   const state = useStore.getState();
-  await setDoc(doc(db, 'users', currentUid, 'data'), {
-    projects: state.projects,
-    tasks: state.tasks,
-  });
+  console.log('[ProjectFlow] Writing to Firestore:', state.projects.length, 'projects,', state.tasks.length, 'tasks');
+  try {
+    await setDoc(doc(db, 'users', currentUid, 'data'), {
+      projects: state.projects,
+      tasks: state.tasks,
+    });
+    console.log('[ProjectFlow] Firestore write OK');
+  } catch (e) {
+    console.error('[ProjectFlow] Firestore write FAILED:', e);
+  }
 }
 
 useStore.subscribe(() => {
   if (!currentUid) return;
-  // If we just loaded localStorage data, sync it immediately
   if (!migrateDone && (useStore.getState().projects.length > 0 || useStore.getState().tasks.length > 0)) {
     migrateDone = true;
     doSync();
@@ -276,14 +280,19 @@ useStore.subscribe(() => {
 export async function loadUserData(uid: string) {
   currentUid = uid;
   migrateDone = false;
-  const snap = await getDoc(doc(db, 'users', uid, 'data'));
-  if (snap.exists()) {
-    const data = snap.data() as { projects: Project[]; tasks: Task[] };
-    useStore.setState({ projects: data.projects ?? [], tasks: data.tasks ?? [] });
-    return;
+  console.log('[ProjectFlow] loadUserData for uid:', uid.slice(0, 8) + '...');
+  try {
+    const snap = await getDoc(doc(db, 'users', uid, 'data'));
+    if (snap.exists()) {
+      const data = snap.data() as { projects: Project[]; tasks: Task[] };
+      console.log('[ProjectFlow] Loaded from Firestore:', data.projects?.length, 'projects,', data.tasks?.length, 'tasks');
+      useStore.setState({ projects: data.projects ?? [], tasks: data.tasks ?? [] });
+      return;
+    }
+  } catch (e) {
+    console.error('[ProjectFlow] Firestore read FAILED:', e);
   }
 
-  // If store already has data (from localStorage preload), sync it
   const current = useStore.getState();
   if (current.projects.length > 0 || current.tasks.length > 0) {
     console.log('[ProjectFlow] Syncing preloaded localStorage data to Firestore...');
@@ -292,6 +301,7 @@ export async function loadUserData(uid: string) {
     return;
   }
 
+  console.log('[ProjectFlow] No data found anywhere, starting fresh');
   useStore.setState({ projects: [], tasks: [] });
 }
 
