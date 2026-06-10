@@ -19,6 +19,27 @@ function migrateTask(t: Task): Task {
   };
 }
 
+// Load any existing localStorage data on startup
+function loadFromLocalStorage(): { projects: Project[]; tasks: Task[] } | null {
+  try {
+    const raw = localStorage.getItem('project-flow-storage');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const state = parsed?.state as { projects?: Project[]; tasks?: Task[] } | undefined;
+    if (!state || (!state.projects?.length && !state.tasks?.length)) return null;
+    console.log('[ProjectFlow] Found localStorage data:', state.projects?.length, 'projects,', state.tasks?.length, 'tasks');
+    return {
+      projects: (state.projects ?? []).map(migrateProject),
+      tasks: (state.tasks ?? []).map(migrateTask),
+    };
+  } catch (e) {
+    console.warn('[ProjectFlow] Failed to parse localStorage:', e);
+    return null;
+  }
+}
+
+const localData = loadFromLocalStorage();
+
 interface AppStore {
   projects: Project[];
   tasks: Task[];
@@ -50,8 +71,8 @@ interface AppStore {
 }
 
 export const useStore = create<AppStore>()((set, get) => ({
-  projects: [],
-  tasks: [],
+  projects: localData?.projects ?? [],
+  tasks: localData?.tasks ?? [],
   currentProjectId: null,
   sidebarOpen: true,
 
@@ -229,6 +250,7 @@ export const useStore = create<AppStore>()((set, get) => ({
 
 let currentUid: string | null = null;
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
+let migrateDone = false;
 
 async function doSync() {
   if (!currentUid) return;
@@ -241,12 +263,19 @@ async function doSync() {
 
 useStore.subscribe(() => {
   if (!currentUid) return;
+  // If we just loaded localStorage data, sync it immediately
+  if (!migrateDone && (useStore.getState().projects.length > 0 || useStore.getState().tasks.length > 0)) {
+    migrateDone = true;
+    doSync();
+    return;
+  }
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(doSync, 2000);
 });
 
 export async function loadUserData(uid: string) {
   currentUid = uid;
+  migrateDone = false;
   const snap = await getDoc(doc(db, 'users', uid, 'data'));
   if (snap.exists()) {
     const data = snap.data() as { projects: Project[]; tasks: Task[] };
@@ -254,25 +283,21 @@ export async function loadUserData(uid: string) {
     return;
   }
 
-  // Migrate old localStorage data if it exists
-  try {
-    const raw = localStorage.getItem('project-flow-storage');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      const state = parsed?.state as { projects?: Project[]; tasks?: Task[] } | undefined;
-      const migratedProjects = (state?.projects ?? []).map(migrateProject);
-      const migratedTasks = (state?.tasks ?? []).map(migrateTask);
-      useStore.setState({ projects: migratedProjects, tasks: migratedTasks });
-      localStorage.removeItem('project-flow-storage');
-      return;
-    }
-  } catch { /* ignore corrupt localStorage */ }
+  // If store already has data (from localStorage preload), sync it
+  const current = useStore.getState();
+  if (current.projects.length > 0 || current.tasks.length > 0) {
+    console.log('[ProjectFlow] Syncing preloaded localStorage data to Firestore...');
+    migrateDone = true;
+    await doSync();
+    return;
+  }
 
   useStore.setState({ projects: [], tasks: [] });
 }
 
 export function clearUserData() {
   currentUid = null;
+  migrateDone = false;
   if (syncTimer) clearTimeout(syncTimer);
   useStore.setState({ projects: [], tasks: [], currentProjectId: null });
 }
