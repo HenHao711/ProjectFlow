@@ -251,9 +251,24 @@ export async function loadUserData(uid: string) {
   if (snap.exists()) {
     const data = snap.data() as { projects: Project[]; tasks: Task[] };
     useStore.setState({ projects: data.projects ?? [], tasks: data.tasks ?? [] });
-  } else {
-    useStore.setState({ projects: [], tasks: [] });
+    return;
   }
+
+  // Migrate old localStorage data if it exists
+  try {
+    const raw = localStorage.getItem('project-flow-storage');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const state = parsed?.state as { projects?: Project[]; tasks?: Task[] } | undefined;
+      const migratedProjects = (state?.projects ?? []).map(migrateProject);
+      const migratedTasks = (state?.tasks ?? []).map(migrateTask);
+      useStore.setState({ projects: migratedProjects, tasks: migratedTasks });
+      localStorage.removeItem('project-flow-storage');
+      return;
+    }
+  } catch { /* ignore corrupt localStorage */ }
+
+  useStore.setState({ projects: [], tasks: [] });
 }
 
 export function clearUserData() {
