@@ -1,7 +1,10 @@
-import { useState } from 'react';
-import { useStore } from './store';
+import { useState, useEffect } from 'react';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { auth } from './firebase';
+import { useStore, loadUserData, clearUserData } from './store';
 import Header from './components/Header';
 import Landing from './components/Landing';
+import LoginModal from './components/LoginModal';
 import Sidebar from './components/Sidebar';
 import KanbanBoard from './components/KanbanBoard';
 import ProjectModal from './components/ProjectModal';
@@ -29,21 +32,75 @@ function EmptyState({ onClick }: { onClick: () => void }) {
 }
 
 export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [showLanding, setShowLanding] = useState(true);
+  const [showLogin, setShowLogin] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const projects = useStore((s) => s.projects);
   const currentProjectId = useStore((s) => s.currentProjectId);
 
+  // Listen for auth state changes
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setAuthReady(true);
+      if (firebaseUser) {
+        loadUserData(firebaseUser.uid);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const handleEnter = () => {
+    if (user) {
+      setShowLanding(false);
+    } else {
+      setShowLogin(true);
+    }
+  };
+
+  const handleLoginSuccess = () => {
+    setShowLogin(false);
+    setShowLanding(false);
+  };
+
+  const handleLogout = async () => {
+    clearUserData();
+    await signOut(auth);
+    setShowLanding(true);
+  };
+
+  // Show nothing while auth is initializing
+  if (!authReady) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-white">
+        <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   if (showLanding) {
-    return <Landing onEnter={() => setShowLanding(false)} />;
+    return (
+      <>
+        <Landing onEnter={handleEnter} />
+        {showLogin && (
+          <LoginModal
+            onClose={() => {
+              setShowLogin(false);
+              if (user) setShowLanding(false);
+            }}
+          />
+        )}
+      </>
+    );
   }
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <Header onLogoClick={() => setShowLanding(true)} />
+      <Header onLogoClick={() => setShowLanding(true)} user={user} onLogout={handleLogout} />
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar overlay for mobile */}
         {sidebarOpen && (
           <div
             className="fixed inset-0 z-30 bg-black/30 lg:hidden"
@@ -51,7 +108,6 @@ export default function App() {
           />
         )}
 
-        {/* Sidebar */}
         <aside
           className={`
             fixed lg:static inset-y-0 left-0 z-40 w-56 flex-shrink-0
@@ -64,7 +120,6 @@ export default function App() {
           <Sidebar onNewProject={() => setShowProjectModal(true)} />
         </aside>
 
-        {/* Main content */}
         <main className="flex-1 overflow-auto p-4">
           {projects.length === 0 ? (
             <EmptyState onClick={() => setShowProjectModal(true)} />

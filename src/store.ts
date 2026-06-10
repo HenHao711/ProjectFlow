@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { db } from './firebase';
 import type { Project, Task, TaskStatus, Department, FlowLog } from './types';
 
 function uid(): string {
@@ -48,194 +49,215 @@ interface AppStore {
   getTaskFlowLogs: (taskId: string) => FlowLog[];
 }
 
-export const useStore = create<AppStore>()(
-  persist(
-    (set, get) => ({
-      projects: [],
-      tasks: [],
-      currentProjectId: null,
-      sidebarOpen: true,
+export const useStore = create<AppStore>()((set, get) => ({
+  projects: [],
+  tasks: [],
+  currentProjectId: null,
+  sidebarOpen: true,
 
-      addProject: (name, description) => {
-        const project: Project = {
+  addProject: (name, description) => {
+    const project: Project = {
+      id: uid(),
+      name,
+      description,
+      status: 'active',
+      departments: [],
+      createdAt: Date.now(),
+    };
+    set((s) => ({
+      projects: [...s.projects, project],
+      currentProjectId: project.id,
+    }));
+  },
+
+  deleteProject: (id) => {
+    set((s) => ({
+      projects: s.projects.filter((p) => p.id !== id),
+      tasks: s.tasks.filter((t) => t.projectId !== id),
+      currentProjectId: s.currentProjectId === id ? null : s.currentProjectId,
+    }));
+  },
+
+  updateProject: (id, updates) => {
+    set((s) => ({
+      projects: s.projects.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+    }));
+  },
+
+  setCurrentProject: (id) =>
+    set({ currentProjectId: id, sidebarOpen: window.innerWidth < 768 ? false : true }),
+  toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+
+  addDepartment: (projectId, name) => {
+    const dept: Department = { id: uid(), name };
+    set((s) => ({
+      projects: s.projects.map((p) =>
+        p.id === projectId
+          ? { ...migrateProject(p), departments: [...p.departments, dept] }
+          : p
+      ),
+    }));
+  },
+
+  removeDepartment: (projectId, departmentId) => {
+    set((s) => ({
+      projects: s.projects.map((p) =>
+        p.id === projectId
+          ? { ...migrateProject(p), departments: p.departments.filter((d) => d.id !== departmentId) }
+          : p
+      ),
+    }));
+  },
+
+  updateDepartment: (projectId, departmentId, name) => {
+    set((s) => ({
+      projects: s.projects.map((p) =>
+        p.id === projectId
+          ? {
+              ...migrateProject(p),
+              departments: p.departments.map((d) =>
+                d.id === departmentId ? { ...d, name } : d
+              ),
+            }
+          : p
+      ),
+    }));
+  },
+
+  addTask: (data) => {
+    const task: Task = {
+      ...data,
+      id: uid(),
+      currentDepartmentId: data.currentDepartmentId ?? null,
+      flowLogs: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    set((s) => ({ tasks: [...s.tasks, task] }));
+  },
+
+  updateTask: (id, updates) => {
+    set((s) => ({
+      tasks: s.tasks.map((t) =>
+        t.id === id ? { ...migrateTask(t), ...updates, updatedAt: Date.now() } : t
+      ),
+    }));
+  },
+
+  deleteTask: (id) => {
+    set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
+  },
+
+  moveTask: (id, status) => {
+    set((s) => ({
+      tasks: s.tasks.map((t) =>
+        t.id === id ? { ...migrateTask(t), status, updatedAt: Date.now() } : t
+      ),
+    }));
+  },
+
+  setTaskDepartment: (taskId, departmentId, departmentName) => {
+    set((s) => ({
+      tasks: s.tasks.map((t) => {
+        if (t.id !== taskId) return t;
+        const safe = migrateTask(t);
+        const updatedLogs = safe.flowLogs.map((log) =>
+          log.completedAt === null ? { ...log, completedAt: Date.now() } : log
+        );
+        const newLog: FlowLog = {
           id: uid(),
-          name,
-          description,
-          status: 'active',
-          departments: [],
-          createdAt: Date.now(),
+          departmentId,
+          departmentName,
+          note: '',
+          enteredAt: Date.now(),
+          completedAt: null,
         };
-        set((s) => ({
-          projects: [...s.projects, project],
-          currentProjectId: project.id,
-        }));
-      },
-
-      deleteProject: (id) => {
-        set((s) => ({
-          projects: s.projects.filter((p) => p.id !== id),
-          tasks: s.tasks.filter((t) => t.projectId !== id),
-          currentProjectId: s.currentProjectId === id ? null : s.currentProjectId,
-        }));
-      },
-
-      updateProject: (id, updates) => {
-        set((s) => ({
-          projects: s.projects.map((p) => (p.id === id ? { ...p, ...updates } : p)),
-        }));
-      },
-
-      setCurrentProject: (id) =>
-        set({ currentProjectId: id, sidebarOpen: window.innerWidth < 768 ? false : true }),
-      toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
-
-      addDepartment: (projectId, name) => {
-        const dept: Department = { id: uid(), name };
-        set((s) => ({
-          projects: s.projects.map((p) =>
-            p.id === projectId
-              ? { ...migrateProject(p), departments: [...p.departments, dept] }
-              : p
-          ),
-        }));
-      },
-
-      removeDepartment: (projectId, departmentId) => {
-        set((s) => ({
-          projects: s.projects.map((p) =>
-            p.id === projectId
-              ? { ...migrateProject(p), departments: p.departments.filter((d) => d.id !== departmentId) }
-              : p
-          ),
-        }));
-      },
-
-      updateDepartment: (projectId, departmentId, name) => {
-        set((s) => ({
-          projects: s.projects.map((p) =>
-            p.id === projectId
-              ? {
-                  ...migrateProject(p),
-                  departments: p.departments.map((d) =>
-                    d.id === departmentId ? { ...d, name } : d
-                  ),
-                }
-              : p
-          ),
-        }));
-      },
-
-      addTask: (data) => {
-        const task: Task = {
-          ...data,
-          id: uid(),
-          currentDepartmentId: data.currentDepartmentId ?? null,
-          flowLogs: [],
-          createdAt: Date.now(),
+        return {
+          ...safe,
+          currentDepartmentId: departmentId,
+          flowLogs: [...updatedLogs, newLog],
           updatedAt: Date.now(),
         };
-        set((s) => ({ tasks: [...s.tasks, task] }));
-      },
+      }),
+    }));
+  },
 
-      updateTask: (id, updates) => {
-        set((s) => ({
-          tasks: s.tasks.map((t) =>
-            t.id === id ? { ...migrateTask(t), ...updates, updatedAt: Date.now() } : t
-          ),
-        }));
-      },
-
-      deleteTask: (id) => {
-        set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
-      },
-
-      moveTask: (id, status) => {
-        set((s) => ({
-          tasks: s.tasks.map((t) =>
-            t.id === id ? { ...migrateTask(t), status, updatedAt: Date.now() } : t
-          ),
-        }));
-      },
-
-      setTaskDepartment: (taskId, departmentId, departmentName) => {
-        set((s) => ({
-          tasks: s.tasks.map((t) => {
-            if (t.id !== taskId) return t;
-            const safe = migrateTask(t);
-            const updatedLogs = safe.flowLogs.map((log) =>
-              log.completedAt === null ? { ...log, completedAt: Date.now() } : log
-            );
-            const newLog: FlowLog = {
-              id: uid(),
-              departmentId,
-              departmentName,
-              note: '',
-              enteredAt: Date.now(),
-              completedAt: null,
-            };
-            return {
-              ...safe,
-              currentDepartmentId: departmentId,
-              flowLogs: [...updatedLogs, newLog],
-              updatedAt: Date.now(),
-            };
-          }),
-        }));
-      },
-
-      addFlowNote: (taskId, departmentId, departmentName, note) => {
-        set((s) => ({
-          tasks: s.tasks.map((t) => {
-            if (t.id !== taskId) return t;
-            const safe = migrateTask(t);
-            const log: FlowLog = {
-              id: uid(),
-              departmentId,
-              departmentName,
-              note,
-              enteredAt: Date.now(),
-              completedAt: Date.now(),
-            };
-            return {
-              ...safe,
-              flowLogs: [...safe.flowLogs, log],
-              updatedAt: Date.now(),
-            };
-          }),
-        }));
-      },
-
-      getProjectTasks: (projectId) => {
-        return get().tasks.map(migrateTask).filter((t) => t.projectId === projectId);
-      },
-
-      getProjectDepartments: (projectId) => {
-        const project = get().projects.find((p) => p.id === projectId);
-        return project ? (project.departments ?? []) : [];
-      },
-
-      getTaskCurrentDepartment: (task) => {
-        if (!task.currentDepartmentId) return null;
-        const project = get().projects.find((p) => p.id === task.projectId);
-        return project?.departments?.find((d) => d.id === task.currentDepartmentId) ?? null;
-      },
-
-      getTaskFlowLogs: (taskId) => {
-        const task = get().tasks.find((t) => t.id === taskId);
-        return task?.flowLogs ?? [];
-      },
-    }),
-    {
-      name: 'project-flow-storage',
-      version: 2,
-      migrate: (persistedState: unknown, _version: number) => {
-        const s = persistedState as { projects?: Project[]; tasks?: Task[] };
+  addFlowNote: (taskId, departmentId, departmentName, note) => {
+    set((s) => ({
+      tasks: s.tasks.map((t) => {
+        if (t.id !== taskId) return t;
+        const safe = migrateTask(t);
+        const log: FlowLog = {
+          id: uid(),
+          departmentId,
+          departmentName,
+          note,
+          enteredAt: Date.now(),
+          completedAt: Date.now(),
+        };
         return {
-          ...s,
-          projects: (s.projects ?? []).map(migrateProject),
-          tasks: (s.tasks ?? []).map(migrateTask),
-        } as AppStore;
-      },
-    }
-  )
-);
+          ...safe,
+          flowLogs: [...safe.flowLogs, log],
+          updatedAt: Date.now(),
+        };
+      }),
+    }));
+  },
+
+  getProjectTasks: (projectId) => {
+    return get().tasks.map(migrateTask).filter((t) => t.projectId === projectId);
+  },
+
+  getProjectDepartments: (projectId) => {
+    const project = get().projects.find((p) => p.id === projectId);
+    return project ? (project.departments ?? []) : [];
+  },
+
+  getTaskCurrentDepartment: (task) => {
+    if (!task.currentDepartmentId) return null;
+    const project = get().projects.find((p) => p.id === task.projectId);
+    return project?.departments?.find((d) => d.id === task.currentDepartmentId) ?? null;
+  },
+
+  getTaskFlowLogs: (taskId) => {
+    const task = get().tasks.find((t) => t.id === taskId);
+    return task?.flowLogs ?? [];
+  },
+}));
+
+// ---- Firestore sync ----
+
+let currentUid: string | null = null;
+let syncTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function doSync() {
+  if (!currentUid) return;
+  const state = useStore.getState();
+  await setDoc(doc(db, 'users', currentUid, 'data'), {
+    projects: state.projects,
+    tasks: state.tasks,
+  });
+}
+
+useStore.subscribe(() => {
+  if (!currentUid) return;
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(doSync, 2000);
+});
+
+export async function loadUserData(uid: string) {
+  currentUid = uid;
+  const snap = await getDoc(doc(db, 'users', uid, 'data'));
+  if (snap.exists()) {
+    const data = snap.data() as { projects: Project[]; tasks: Task[] };
+    useStore.setState({ projects: data.projects ?? [], tasks: data.tasks ?? [] });
+  } else {
+    useStore.setState({ projects: [], tasks: [] });
+  }
+}
+
+export function clearUserData() {
+  currentUid = null;
+  if (syncTimer) clearTimeout(syncTimer);
+  useStore.setState({ projects: [], tasks: [], currentProjectId: null });
+}

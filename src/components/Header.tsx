@@ -1,11 +1,14 @@
 import { useStore } from '../store';
-import { Menu, Trash2 } from 'lucide-react';
+import { Menu, Trash2, LogOut } from 'lucide-react';
+import type { User } from 'firebase/auth';
 
 interface HeaderProps {
   onLogoClick?: () => void;
+  user: User | null;
+  onLogout: () => void;
 }
 
-export default function Header({ onLogoClick }: HeaderProps) {
+export default function Header({ onLogoClick, user, onLogout }: HeaderProps) {
   const toggleSidebar = useStore((s) => s.toggleSidebar);
   const projects = useStore((s) => s.projects);
   const currentProjectId = useStore((s) => s.currentProjectId);
@@ -35,6 +38,7 @@ export default function Header({ onLogoClick }: HeaderProps) {
           </>
         )}
       </div>
+
       {currentProject && (
         <button
           onClick={() => {
@@ -48,6 +52,19 @@ export default function Header({ onLogoClick }: HeaderProps) {
           <Trash2 size={14} />
           <span className="hidden sm:inline">删除项目</span>
         </button>
+      )}
+
+      {user && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500 hidden sm:inline">{user.email}</span>
+          <button
+            onClick={onLogout}
+            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+            title="退出登录"
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
       )}
     </header>
   );
