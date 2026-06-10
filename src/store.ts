@@ -256,7 +256,7 @@ async function doSync() {
   const state = useStore.getState();
   console.log('[ProjectFlow] Writing to Firestore:', state.projects.length, 'projects,', state.tasks.length, 'tasks');
   try {
-    await setDoc(doc(db, 'users', currentUid, 'data'), {
+    await setDoc(doc(db, 'users', currentUid), {
       projects: state.projects,
       tasks: state.tasks,
     });
@@ -282,7 +282,7 @@ export async function loadUserData(uid: string) {
   migrateDone = false;
   console.log('[ProjectFlow] loadUserData for uid:', uid.slice(0, 8) + '...');
   try {
-    const snap = await getDoc(doc(db, 'users', uid, 'data'));
+    const snap = await getDoc(doc(db, 'users', uid));
     if (snap.exists()) {
       const data = snap.data() as { projects: Project[]; tasks: Task[] };
       console.log('[ProjectFlow] Loaded from Firestore:', data.projects?.length, 'projects,', data.tasks?.length, 'tasks');
